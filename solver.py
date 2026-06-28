@@ -150,7 +150,7 @@ def run_schedule_pipeline():
     
     x = create_empty_schedule_variables(model, num_days, all_nurses)
     
-    get_shift_status,   = setup_status_helpers(x, past_shifts)
+    get_shift_status,is_working   = setup_status_helpers(x, past_shifts)
     
     apply_basic_labor_constraints(model, num_days, all_nurses, get_shift_status, is_working)    
 
