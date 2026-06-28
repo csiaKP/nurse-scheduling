@@ -1,0 +1,231 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 100%;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    padding: 20px;
+    overflow-x: auto;
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.message {
+    padding: 12px 15px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    min-width: 300px;
+}
+
+.message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+    display: block;
+}
+
+.message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    display: block;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.stat-card h3 {
+    font-size: 12px;
+    margin-bottom: 5px;
+    opacity: 0.9;
+}
+
+.stat-card .value {
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.calendar-section {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+.calendar-table {
+    border-collapse: collapse;
+    font-size: 11px;
+    min-width: 100%;
+}
+
+.calendar-table th {
+    background: #667eea;
+    color: white;
+    padding: 8px;
+    text-align: center;
+    font-weight: 600;
+    border: 1px solid #ddd;
+    min-width: 45px;
+}
+
+.calendar-table td {
+    padding: 4px;
+    border: 1px solid #ddd;
+    text-align: center;
+    vertical-align: middle;
+    min-width: 50px;
+    height: 45px;
+}
+
+.calendar-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.05); /* เพิ่มเงาตัดขอบตอนเลื่อน */
+}
+
+.nurse-name {
+    background: #f8f9fa;
+    font-weight: 600;
+    text-align: left;
+    padding: 8px;
+    min-width: 120px;
+    position: sticky;
+    left: 0;
+    z-index: 10;
+}
+
+.day-cell {
+    cursor: pointer;
+    background: #f0f0f0;
+    border-radius: 4px;
+    transition: all 0.2s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    user-select: none;
+    height: 35px;
+    width: 100%;
+}
+
+.day-cell:hover {
+    background: #e0e0e0;
+    transform: scale(1.08);
+}
+
+.day-cell.queue1 { background: #ff6b6b; color: white; }
+.day-cell.queue2 { background: #ffa500; color: white; }
+.day-cell.queue3 { background: #ffd700; color: #333; }
+.day-cell.queue4 { background: #87ceeb; color: white; }
+.day-cell.queue5 { background: #90ee90; color: #333; }
+
+.queue-label {
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.legend {
+    display: flex;
+    gap: 15px;
+    margin-top: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    font-size: 12px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.legend-color {
+    width: 25px;
+    height: 25px;
+    border-radius: 3px;
+}
+
+.btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 13px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.btn-success {
+    background: #2ec4b6;
+    color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+    background: #20a498;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(46, 196, 182, 0.4);
+}
+
+
+ /* 4. TABLE HOVER EFFECTS (ระบบไฟไฮไลต์ตาราง) */
+.calendar-table tr.row-hover {
+    background-color: #e7ea1a !important; 
+}
+
+/* ไฟไฮไลต์คอลัมน์แนวตั้ง (วันที่ตรงกัน) */
+.calendar-table td.col-hover {
+    background-color: #f8fafc;
+}
+
+/* ไฟไฮไลต์กล่องข้อความวันที่ด้านบนสุด */
+.calendar-table th.col-hover-header {
+    background-color: #1d4ed8 !important; /* น้ำเงินเข้มจัด */
+    color: #ffffff !important;
+    transform: scale(1.05); /* ขยายใหญ่ขึ้นเล็กน้อยเพื่อล็อคสายตา */
+    transition: all 0.1s ease; /* เพิ่มความสมูทตอนไฟติด */
+}
+

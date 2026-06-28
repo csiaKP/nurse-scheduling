@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จองวันหยุด - จัดเวรพยาบาล</title>
+    
+    <!-- 1. ดึงไฟล์ CSS จากโฟลเดอร์ static -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>📅 ระบบจองวันหยุดพยาบาล</h1>
+        
+        <div class="message" id="message"></div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <h3>📊 การจองทั้งหมด</h3>
+                <div class="value" id="total-bookings">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>👩‍⚕️ พยาบาลที่จอง</h3>
+                <div class="value" id="unique-nurses">0</div>
+            </div>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item"><div class="legend-color" style="background: #ff6b6b;"></div><span>R1 - จองก่อนสุด</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: #ffa500;"></div><span>R2 - จองคนที่ 2</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: #ffd700;"></div><span>R3 - จองคนที่ 3</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: #87ceeb;"></div><span>R4 - จองคนที่ 4</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: #90ee90;"></div><span>R5 - จองคนที่ 5</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: #f0f0f0; border: 1px solid #ccc;"></div><span>ว่าง</span></div>
+        </div>
+        
+        <div class="calendar-section">
+            <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <h2 style="color: #333; font-size: 14px; margin: 0;">📋 ตารางจองวันหยุด (คลิกเซลล์เพื่อจอง/ยกเลิก)</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button id="btn-save" class="btn btn-success" onclick="saveAllBookings()" disabled>
+                        💾 บันทึกการเปลี่ยนแปลง
+                    </button>
+                </div>
+            </div>
+
+            <table class="calendar-table">
+                <thead>
+                    <tr id="calendar-header-row">
+                        <th style="width: 60px; text-align: center;">ลำดับ</th> 
+                        <th class="nurse-name">รายชื่อพยาบาล</th>
+                        <!-- วันที่ 1-31 จะถูกเจนอัตโนมัติด้วย JS เพื่อความสะอาดของ HTML -->
+                    </tr>
+                </thead>
+                <tbody id="calendar-body">
+                    <!-- รายชื่อพยาบาลและเซลล์จะถูกสร้างด้วย JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 2. ส่งข้อมูลจาก Flask เข้าสู่ตัวแปร Global ในหน้าเว็บก่อนดึงไฟล์สคริปต์ภายนอก -->
+    <script>
+        window.FlaskData = {
+            nurses: {{ nurses | tojson }},
+            bookings: {{ bookings | tojson }}
+        };
+    </script>
+
+    <!-- 3. ดึงไฟล์ JavaScript จากโฟลเดอร์ static -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    
+</body>
+</html>
