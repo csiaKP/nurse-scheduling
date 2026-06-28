@@ -111,7 +111,6 @@ def create_solver_engine():
     [ขั้นตอนที่ 6] เปิดเครื่องคำนวณและตั้งค่าพารามิเตอร์เบื้องต้น
     """
     solver = cp_model.CpSolver()
-    # ตั้งค่าจำกัดเวลาคำนวณสูงสุด 30 วินาที เพื่อไม่ให้เว็บค้าง
     solver.parameters.max_time_in_seconds = 30.0
     return solver
 
@@ -138,28 +137,23 @@ def run_schedule_pipeline():
     """
     [ฟังก์ชันหลักควบคุมระบบ] ทำหน้าที่เรียกใช้ทุกฟังก์ชันและส่งต่อ Parameter
     """
-    # ขั้นตอนที่ 1: เตรียมเสบียงข้อมูล
+
     data = prepare_input_data()
     if not data: return "ข้อมูลไม่พร้อม"
     
-    # ดึงค่าพื้นฐานมาเปิดลูป
     num_days = data["num_days"]
     all_nurses = data["all_nurses"]
     past_shifts = data["past_shifts"]
     
     # เปิดโมเดลคณิตศาสตร์หลักของ OR-Tools
-    from ortools.sat.python import cp_model
     model = cp_model.CpModel()
     
-    # ขั้นตอนที่ 2: สั่งสร้างกล่องเปล่า (ได้กล่อง x กลับมา)
     x = create_empty_schedule_variables(model, num_days, all_nurses)
     
-    # ขั้นตอนที่ 3: สั่งสร้างตัวช่วยเช็คสถานะ (ได้ฟังก์ชัน get_shift_status และ is_working กลับมา)
-    get_shift_status, is_working = setup_status_helpers(x, past_shifts)
+    get_shift_status,   = setup_status_helpers(x, past_shifts)
     
-    # ขั้นตอนที่ 4: สั่งผูกกฎเหล็กต่าง ๆ เข้าไปใน model (ส่งตัวช่วยจากข้อ 3 เข้าไปด้วย)
-    apply_basic_labor_constraints(model, num_days, all_nurses, get_shift_status, is_working)
-    apply_nurse_off_bounds_constraints(model, num_days, all_nurses, get_shift_status)
+    apply_basic_labor_constraints(model, num_days, all_nurses, get_shift_status, is_working)    
+
     # (เรียกกฎเหล็กข้ออื่น ๆ เพิ่มตรงนี้...)
     
     # ขั้นตอนที่ 5: กฎรอง (ถ้ามี)
@@ -172,7 +166,6 @@ def run_schedule_pipeline():
     
     # ขั้นตอนหลังจากนี้ (แกะผลลัพธ์ / ปริ้นเช็ค / เซฟลง Excel)
     if success:
-        # พิมพ์ผลลัพธ์ หรือ คืนค่าตารางเวรออกไป
         print("🎉 ตารางพร้อมใช้งานแล้ว!")
         
     return success
