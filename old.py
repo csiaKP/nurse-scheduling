@@ -114,14 +114,6 @@ def apply_jane_constraints(model, x, data):
                 else:
                     model.Add(x[10, day_idx, s] == 0)
 
-# 3.4 เดี๋ยวจะทำฟังชัน คนชอบ day 
-# def nurse_like_day(model,x):
-
-    # num_day = 31
-    # for n in [5,8,12,14]:
-    #     model.Add(sum(x[n, d, 1] for d in num_day) <= 14)
-
-
 
 # กล่องที่ 4: กล่องใส่กฎรองเพื่อคิดคะแนนรางวัล (Soft Constraints)
 def apply_soft_constraints(model, x, data):
@@ -175,119 +167,6 @@ def solve_model(model, max_time=30.0):
     return solver, status
 
 
-# กล่องที่ 5  พิมพ์ทุกคำตอบ
-class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
-    def __init__(self, x, data):
-        cp_model.CpSolverSolutionCallback.__init__(self)
-        self.__x = x
-        self.__data = data
-        self.__solution_count = 0
-
-    def on_solution_callback(self):
-        self.__solution_count += 1
-        num_days = self.__data["num_days"]
-        all_nurses = self.__data["all_nurses"]
-        past_shifts = self.__data["past_shifts"]
-        holiday_bookings = self.__data["holiday_bookings"]
-        
-        print(f"\n=====================================================================================================================================================")
-        print(f"🎉 เจอคำตอบแบบที่ {self.__solution_count} แล้ว!")
-        print(f"=====================================================================================================================================================")
-        header_days = " ".join(f"{d:02d}" for d in range(1, 32))
-        
-        print_schedule_results(
-            solver=self, 
-            status=cp_model.OPTIMAL, 
-            x=self.__x, 
-            data=self.__data
-        )
-
-        # ตัวคุมความปลอดภัย
-        if self.__solution_count >= 20:
-            print(f"\n🛑 ระบบทำการหยุดรันชั่วคราวเมื่อเจอครบ 20 แบบแล้ว เพื่อประหยัดพลังงานคอมพิวเตอร์ครับ")
-            self.StopSearch()
-
-    def solution_count(self):
-        return self.__solution_count
-
-
-def solve_model_all_solutions(model, x, data):
-    solver = cp_model.CpSolver()
-    solver.parameters.enumerate_all_solutions = True
-    solution_printer = VarArraySolutionPrinter(x, data)
-    status = solver.Solve(model, solution_printer)
-    
-    print(f"\n📊 รวมทั้งหมดประมวลผลเจอวิธิจัดเวรที่ผ่านกฎเหล็กทั้งสิ้น: {solution_printer.solution_count()} แบบ")
-    return solver, status
-
-
-# กล่องที่ 6: ฟังก์ชันแปลงผลลัพธ์เป็น dict ส่งให้ web (Web-friendly)
-def format_schedule_data(solver, status, x, data):
-    """
-    แปลงผลลัพธ์การจัดเวรเป็น dict
-    Return: dict ที่มี 'success', 'message', 'schedule', 'summary'
-    """
-    if status != cp_model.OPTIMAL and status != cp_model.FEASIBLE:
-        return {
-            "success": False,
-            "message": "❌ จัดตารางไม่ได้! เงื่อนไขคนขาดหรือตัวเลขที่คุณตั้งขัดแย้งกันเองจนทางตัน",
-            "schedule": [],
-            "summary": {"day_totals": [], "night_totals": []}
-        }
-    
-    num_days = data["num_days"]
-    all_nurses = data["all_nurses"]
-    past_shifts = data["past_shifts"]
-    holiday_bookings = data["holiday_bookings"]
-    
-    schedule_list = []
-    
-    # สร้างข้อมูลตารางเวรแต่ละคน
-    for n, name in all_nurses.items(): 
-        past_str = "".join("d" if s==1 else ("n" if s==2 else "x") for s in past_shifts[n])
-        shifts_per_day = []
-        actual_off = 0
-        
-        for d in range(num_days):
-            if solver.Value(x[n, d, 1]) == 1: 
-                shifts_per_day.append("d")  
-            elif solver.Value(x[n, d, 2]) == 1: 
-                shifts_per_day.append("n")  
-            else:
-                is_booked_r = any(nurse == n and actual_day == (d + 1) for nurse, actual_day, queue_order in holiday_bookings)
-                shifts_per_day.append("R" if is_booked_r else "-")
-                actual_off += 1
-        
-        comment = "(ลาคลอด)" if n == 13 else ""
-        schedule_list.append({
-            "nurse_id": n,
-            "name": name,
-            "past": past_str,
-            "shifts": shifts_per_day,
-            "off_days": actual_off,
-            "comment": comment
-        })
-    
-    # สรุปจำนวนคนรายวัน
-    day_totals = []
-    night_totals = []
-    for d in range(num_days):
-        d_count = sum(solver.Value(x[n, d, 1]) for n in all_nurses.keys())
-        n_count = sum(solver.Value(x[n, d, 2]) for n in all_nurses.keys())
-        day_totals.append(d_count)
-        night_totals.append(n_count)
-    
-    return {
-        "success": True,
-        "message": "✅ จัดตารางเวรสำเร็จ!",
-        "schedule": schedule_list,
-        "summary": {
-            "day_totals": day_totals,
-            "night_totals": night_totals
-        }
-    }
-
-
 # กล่องที่ 6b: พิมพ์ผลลัพธ์ออกหน้าจอ (Console-friendly)
 def print_schedule_results(solver, status, x, data):
     formatted_data = format_schedule_data(solver, status, x, data)
@@ -328,14 +207,9 @@ def setup_variables(model, data):
     return x  # ส่งตู้เอกสาร x ที่ใส่แคปซูลครบแล้วกลับไปให้คนเรียกใช้งาน
 
 
-# ฟังก์ชัน Validation - ตรวจสอบ config ก่อนใช้งาน
-
-
-
-
-
 #Save to excel
 def save_schedule_to_excel(solver, status, x, data, filename="schedule_results.xlsx"):
+    
     if status != 1 and status != 4: # เช็กว่าจัดสำเร็จไหม
         print("❌ จัดตารางไม่สำเร็จ ไม่สามารถบันทึก Excel ได้")
         return
