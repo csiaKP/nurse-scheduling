@@ -116,6 +116,7 @@ def create_solver_engine():
 
 
 def run_solver(solver, model, x, data):
+    
     """
     [ขั้นตอนที่ 7] รับโมเดลที่มีกฎเหล็กครบแล้ว มาสั่งรันเพื่อผ่าทางตันหาคำตอบ
     """
@@ -145,7 +146,6 @@ def run_schedule_pipeline():
     all_nurses = data["all_nurses"]
     past_shifts = data["past_shifts"]
     
-    # เปิดโมเดลคณิตศาสตร์หลักของ OR-Tools
     model = cp_model.CpModel()
     
     x = create_empty_schedule_variables(model, num_days, all_nurses)
@@ -158,10 +158,10 @@ def run_schedule_pipeline():
     
     # ขั้นตอนที่ 5: กฎรอง (ถ้ามี)
     
-    # ขั้นตอนที่ 6: สร้างตัว Solver
+
     solver = create_solver_engine()
+
     
-    # ขั้นตอนที่ 7: 🚀 สั่งรัน Solver (ส่งพารามิเตอร์ทั้งหมดที่คุณเตรียมไว้ไปให้)
     success, status = run_solver(solver, model, x, data)
     
     # ขั้นตอนหลังจากนี้ (แกะผลลัพธ์ / ปริ้นเช็ค / เซฟลง Excel)
@@ -169,6 +169,8 @@ def run_schedule_pipeline():
         print("🎉 ตารางพร้อมใช้งานแล้ว!")
         
     return success
+
+
 
 
 
