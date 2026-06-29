@@ -106,17 +106,17 @@ def apply_basic_labor_constraints(model, num_days, all_nurses, get_shift_status,
 # 5. soft constraints:
 
 
-def create_solver_engine():
+def create_solver_engine(time):
     """
     [ขั้นตอนที่ 6] เปิดเครื่องคำนวณและตั้งค่าพารามิเตอร์เบื้องต้น
     """
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 30.0
+    solver.parameters.max_time_in_seconds = time
     return solver
 
 
-def run_solver(solver, model, x, data):
-    
+
+def run_solver(solver, model):
     """
     [ขั้นตอนที่ 7] รับโมเดลที่มีกฎเหล็กครบแล้ว มาสั่งรันเพื่อผ่าทางตันหาคำตอบ
     """
@@ -128,17 +128,21 @@ def run_solver(solver, model, x, data):
     # เช็คผลลัพธ์การรัน
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print("✅ [Success] จัดตารางเวรพยาบาลสำเร็จลุล่วง!")
-        return True, status
+        return True, solver  # ส่งตัวเครื่องยนต์ที่มีคำตอบกลับไป
     else:
         print("❌ [Infeasible] ไม่สามารถจัดตารางได้! เงื่อนไขกฎเหล็กขัดแย้งกันเอง")
-        return False, status
+        return False, None   # จัดตารางไม่ได้ ส่ง None กลับไป
+
+
+
+def print_schedule(solver, x, data): pass
+
 
 
 def run_schedule_pipeline():
     """
     [ฟังก์ชันหลักควบคุมระบบ] ทำหน้าที่เรียกใช้ทุกฟังก์ชันและส่งต่อ Parameter
     """
-
     data = prepare_input_data()
     if not data: return "ข้อมูลไม่พร้อม"
     
@@ -147,28 +151,33 @@ def run_schedule_pipeline():
     past_shifts = data["past_shifts"]
     
     model = cp_model.CpModel()
+
     
     x = create_empty_schedule_variables(model, num_days, all_nurses)
-    
-    get_shift_status,is_working   = setup_status_helpers(x, past_shifts)
+    get_shift_status, is_working = setup_status_helpers(x, past_shifts)
+
     
     apply_basic_labor_constraints(model, num_days, all_nurses, get_shift_status, is_working)    
 
     # (เรียกกฎเหล็กข้ออื่น ๆ เพิ่มตรงนี้...)
-    
     # ขั้นตอนที่ 5: กฎรอง (ถ้ามี)
     
-
-    solver = create_solver_engine()
-
+    solver = create_solver_engine(45)
     
-    success, status = run_solver(solver, model, x, data)
+    success, solved_engine = run_solver(solver, model)
     
     # ขั้นตอนหลังจากนี้ (แกะผลลัพธ์ / ปริ้นเช็ค / เซฟลง Excel)
     if success:
-        print("🎉 ตารางพร้อมใช้งานแล้ว!")
+        # ✨ แก้ไข: ส่งพารามิเตอร์ให้ตรงตามฟังก์ชันรับด้านล่าง
+        print_schedule(solved_engine, x, data)
         
-    return success
+    # return success
+
+
+
+run_schedule_pipeline()
+
+
 
 
 
