@@ -1,7 +1,7 @@
 from ortools.sat.python import cp_model
 import pandas as pd
 import os
-from config_manager import load_config
+from config_manager import load_config  
 
 
 # กล่องที่ 2: ฟังก์ชันตัวช่วยดึงประวัติเวรเก่า (Helpers)
@@ -114,14 +114,6 @@ def apply_jane_constraints(model, x, data):
                 else:
                     model.Add(x[10, day_idx, s] == 0)
 
-# 3.4 เดี๋ยวจะทำฟังชัน คนชอบ day 
-# def nurse_like_day(model,x):
-
-    # num_day = 31
-    # for n in [5,8,12,14]:
-    #     model.Add(sum(x[n, d, 1] for d in num_day) <= 14)
-
-
 
 # กล่องที่ 4: กล่องใส่กฎรองเพื่อคิดคะแนนรางวัล (Soft Constraints)
 def apply_soft_constraints(model, x, data):
@@ -175,6 +167,7 @@ def solve_model(model, max_time=30.0):
     return solver, status
 
 
+
 # กล่องที่ 5  พิมพ์ทุกคำตอบ
 class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
     def __init__(self, x, data):
@@ -210,7 +203,6 @@ class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
     def solution_count(self):
         return self.__solution_count
 
-
 def solve_model_all_solutions(model, x, data):
     solver = cp_model.CpSolver()
     solver.parameters.enumerate_all_solutions = True
@@ -219,6 +211,7 @@ def solve_model_all_solutions(model, x, data):
     
     print(f"\n📊 รวมทั้งหมดประมวลผลเจอวิธิจัดเวรที่ผ่านกฎเหล็กทั้งสิ้น: {solution_printer.solution_count()} แบบ")
     return solver, status
+
 
 
 # กล่องที่ 6: ฟังก์ชันแปลงผลลัพธ์เป็น dict ส่งให้ web (Web-friendly)
@@ -456,31 +449,23 @@ def run_nurse_scheduling(config_path="config.json"):
     # สั่งเปิดโมเดลคณิตศาสตร์ตัวหลัก
     model = cp_model.CpModel()
     
-    # 1. 📦 ดึงข้อมูลดิบรายเดือนจาก JSON หรือ default (ได้ตัวแปร data)
     data = load_config(config_path)
-    
-    # 2. ลงมือสร้างกล่องตัวแปร x ขนาด 31 วันใน Main ตรงนี้เลย!
+
     x = setup_variables(model, data)
 
-    # 3. 🛠️ ดึงฟังก์ชันช่วยสืบค้นเวรเก่า (จากกล่องที่ 2)
     get_shift_status, is_working = create_shift_helpers(x, data["past_shifts"])
-    
-    # 4. 🦾 ส่งกระดาน x และ data ไปผูกกฎเหล็กที่กล่องย่อย 3.1 - 3.3
+
     apply_general_hard_constraints(model, x, data, get_shift_status, is_working)
     apply_maternity_leave_constraints(model, x, data)
     apply_jane_constraints(model, x, data)
-    
-    # 5. 🎯 ส่งกระดาน x และ data ไปผูกกฎรองเพื่อคิดแต้มรางวัลที่กล่องที่ 4
     apply_soft_constraints(model, x, data)
     
-    # 6. 🚀 ส่งโมเดลไปให้เตาแก๊สคำนวณที่กล่องที่ 5 (ได้ผลลัพธ์ solver และ status กลับมา)
     solver, status = solve_model(model, max_time=60.0)
-    # solve_model_all_solutions(model, x, data)
     
-    # 7. 📊 ส่งตัวแปรที่คำนวณเสร็จแล้วทั้งหมดไปพิมพ์ออกหน้าจอที่กล่องที่ 6
     print_schedule_results(solver, status, x, data)
     
     return solver, status, x, data
+
 
 
 if __name__ == '__main__':
