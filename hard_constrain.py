@@ -1,29 +1,30 @@
-from config_manager import load_config
-
-config = load_config()
 
 def apply_all_hard_constraints(model, x, data, get_shift_status, is_working):
     """
     [Master Function] ฟังก์ชันหลักที่เป็นศูนย์รวม 
     ทำหน้าที่เรียกใช้งานกฎเหล็กย่อยทั้ง 7 ข้อเรียงตามลำดับ
     """
+
     num_days = data["num_days"]
     all_nurses = data["all_nurses"]
     
     # กลุ่มที่ 1: กฎควบคุมกำลังพลรวมระดับวอร์ด
-    apply_daily_staffing_demand(model, x, data, num_days)
-    
-    # กลุ่มที่ 2: กฎควบคุมพฤติกรรมการขึ้นเวรของบุคคล
     apply_one_shift_per_day(model, x, data, num_days, all_nurses)
-    apply_work_limit(model, x, data, num_days, all_nurses, is_working)
-    apply_night_day_continue(model, x, data, num_days, all_nurses, get_shift_status)
     
+    
+    # apply_night_day_continue(model, x, data, num_days, all_nurses, get_shift_status)  
+    # apply_work_limit(model, x, data, num_days, all_nurses, is_working)
+    
+
+    apply_daily_staff_demand(model, x, data, num_days)
+    
+
     # กลุ่มที่ 3: กฎตามเงื่อนไขพิเศษและสิทธิวันหยุด
-    apply_holiday_bookings(model, x, data)
-    apply_monthly_off_days_requirement(model, x, data, num_days, all_nurses)
-    apply_like_day(model, x, data, num_days, xxx )
-    apply_leave_requests(model, x, data, num_days , xxx)
-    apply_jane(model, x, data, num_days, xxx)    
+    # apply_holiday_bookings(model, x, data)
+    # apply_monthly_off_days_requirement(model, x, data, num_days, all_nurses)
+    # apply_like_day(model, x, data, num_days, xxx )
+    # apply_leave_requests(model, x, data, num_days , xxx)
+    # apply_jane(model, x, data, num_days, xxx)    
 
 
 
@@ -31,7 +32,28 @@ def apply_all_hard_constraints(model, x, data, get_shift_status, is_working):
 # รายชื่อฟังก์ชันย่อยทั้ง 7 ข้อ (โครงสร้างเปล่าสำหรับรอใส่รายละเอียดกฎเหล็ก)
 # =========================================================================
 
-def apply_daily_staffing_demand(model, x, data, num_days):
+
+def apply_one_shift_per_day(model, x, data, num_days, all_nurses):
+    """[กฎข้อที่ 2] พยาบาล 1 คน สามารถขึ้นเวรได้มากที่สุดเพียง 1 เวรต่อ 1 วัน"""
+
+    shift = [0, 1, 2]  # เวรที่อนุญาตให้พยาบาลทำงานได้ (0=Off, 1=Day, 2=Night)
+    for n in all_nurses:
+        for d in range(1,num_days+1):
+            model.Add(sum(x[n, d, s] for s in shift) == 1)
+
+
+def apply_night_day_continue(model, x, data, num_days, all_nurses, get_shift_status):
+    """[กฎข้อที่ 4] ห้ามลงดึกต่อเช้า"""
+    pass
+
+
+def apply_work_limit(model, x, data, num_days, all_nurses, is_working):
+    """[กฎข้อที่ 3] ควบคุมไม่ให้พยาบาลทำงานติดต่อกันเกินจำนวนวันที่กำหนด (เช่น ห้ามเกิน 3 วัน)"""
+    pass
+
+
+
+def apply_daily_staff_demand(model, x, data, num_days):
     """[กฎข้อที่ 1] ควบคุมจำนวนพยาบาลในแต่ละเวรให้ตรงตามแผนรายวัน (min, max, exact)"""
 
     all_nurses = data["all_nurses"]
@@ -43,9 +65,9 @@ def apply_daily_staffing_demand(model, x, data, num_days):
     min_day, max_day, min_night, max_night = plan["default"]
 
 
-    for d in range(num_days):
-        actual_day = d + 1
-              
+    for d in range(1, num_days + 1):
+
+
         # 2. บังคับจำนวนคนขึ้นเวรเช้า (กะ 1)
         model.Add(sum(x[n, d, 1] for n in all_nurses.keys()) >= min_day)
         model.Add(sum(x[n, d, 1] for n in all_nurses.keys()) <= max_day)
@@ -61,21 +83,6 @@ def apply_daily_staffing_demand(model, x, data, num_days):
         model.Add(sum(x[n, d, 1] for n in all_nurses.keys() if nurse_levels[n] >= 2) >= 1)
         model.Add(sum(x[n, d, 2] for n in all_nurses.keys() if nurse_levels[n] >= 2) >= 1)
 
-
-
-def apply_one_shift_per_day(model, x, data, num_days, all_nurses):
-    """[กฎข้อที่ 2] พยาบาล 1 คน สามารถขึ้นเวรได้มากที่สุดเพียง 1 เวรต่อ 1 วัน"""
-    pass
-
-
-def apply_work_limit(model, x, data, num_days, all_nurses, is_working):
-    """[กฎข้อที่ 3] ควบคุมไม่ให้พยาบาลทำงานติดต่อกันเกินจำนวนวันที่กำหนด (เช่น ห้ามเกิน 3 วัน)"""
-    pass
-
-
-def apply_night_day_continue(model, x, data, num_days, all_nurses, get_shift_status):
-    """[กฎข้อที่ 4] ห้ามลงดึกต่อเช้า"""
-    pass
 
 
 def apply_holiday_bookings(model, x, data):
