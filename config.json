@@ -20,6 +20,8 @@
   },
   "num_days": 31,
   "min_off_days_required": 11,
+  "max_off_days_required": 12,
+  
   "nurse_levels": {
     "2": 4,
     "3": 4,
@@ -130,7 +132,8 @@
     "default": [
       5,
       6,
-      4
+      4,
+      5
     ]
   },
   "holiday_bookings": [
