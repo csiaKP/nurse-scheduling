@@ -14,10 +14,11 @@ def get_monthly_config():
     }
 
     num_days = 31 
-    min_off_days_required = 11   
+    min_off_days_required = 11
+    max_off_days_required = 12
 
     daily_staffing_plan = {
-        "default": [5, 6, 4]
+        "default": [5, 6, 4, 5]
     }
 
     nurse_levels = {
@@ -62,6 +63,7 @@ def get_monthly_config():
         "all_nurses": all_nurses,
         "num_days": num_days, 
         "min_off_days_required": min_off_days_required,
+        "max_off_days_required": max_off_days_required,
         "nurse_levels": nurse_levels,
         "past_shifts": past_shifts,
         "holiday_bookings": holiday_bookings,
@@ -87,16 +89,17 @@ def load_config(config_path=CONFIG_FILE):
             "all_nurses": {int(k): v for k, v in config_json.get("all_nurses", {}).items()},
             "num_days": config_json.get("num_days", 31),
             "min_off_days_required": config_json.get("min_off_days_required", 11),
+            "max_off_days_required": config_json.get("max_off_days_required", 12),
             "nurse_levels": {int(k): v for k, v in config_json.get("nurse_levels", {}).items()},
             "past_shifts": {int(k): v for k, v in config_json.get("past_shifts", {}).items()},
             "daily_staffing_plan": {
                 ("default" if k == "default" else int(k)): v 
                 for k, v in config_json.get("daily_staffing_plan", {}).items()
             },
-            "holiday_bookings": [
-                (tuple(item) if isinstance(item, list) else item) 
-                for item in config_json.get("holiday_bookings", [])
-            ],
+            "holiday_bookings": {
+                int(nurse_str): {int(day_str): queue_val for day_str, queue_val in days_dict.items()}
+                for nurse_str, days_dict in config_json.get("holiday_bookings", {}).items()
+            },
             "nurse_10_custom_schedule": {
                 int(k): v for k, v in config_json.get("nurse_10_custom_schedule", {}).items()
             }
@@ -105,6 +108,8 @@ def load_config(config_path=CONFIG_FILE):
     except Exception as e:
         print(f"❌ ผิดพลาดในการอ่าน {config_path}: {e}")
         return get_monthly_config()
+
+
 
 
 def load_nurses_list(config_path=CONFIG_FILE):
@@ -165,8 +170,9 @@ def save_bookings(bookings, config_path=CONFIG_FILE):
         return False
 
 
+
 if __name__ == '__main__':
-    # ส่วนสำหรับทดสอบรันไฟล์ตัวกลางโดยตรง
+    # ส่วนสำหรับทดสอบรันไฟล์ตัวกลางโดยตรง 
     print("🔍 ทดสอบการรันไฟล์ config_manager.py...")
     config = load_config()
     print(f"✅ โหลดข้อมูลสำเร็จ! มีรายชื่อพยาบาลทั้งหมด {len(config['all_nurses'])} คน")

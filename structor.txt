@@ -1,0 +1,5 @@
+config_manage.py    ทำแล้ว
+hard_constrain.py   กำลังทำ   
+soft_constrain.py
+solver.py           
+main

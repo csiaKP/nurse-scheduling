@@ -6,6 +6,7 @@ from config_manager import load_config
 
 # กล่องที่ 2: ฟังก์ชันตัวช่วยดึงประวัติเวรเก่า (Helpers)
 def create_shift_helpers(x, past_shifts):
+    
     def get_shift_status(nurse, day_idx, shift_type):
         if day_idx < 0:
             return 1 if past_shifts[nurse][day_idx + 3] == shift_type else 0
@@ -19,7 +20,7 @@ def create_shift_helpers(x, past_shifts):
     return get_shift_status, is_working
 
 
-# กล่องที่ 3.1: กฎเหล็กพยาบาลทั่วไปทุกคน
+# กล่องที่ 3: กฎเหล็กพยาบาลทั่วไปทุกคน
 def apply_general_hard_constraints(model, x, data, get_shift_status, is_working):
     num_days = data["num_days"]
     all_nurses = data["all_nurses"]
@@ -82,81 +83,6 @@ def apply_general_hard_constraints(model, x, data, get_shift_status, is_working)
         model.Add(sum(x[n, d, 1] for d in range(num_days)) <= 16)
     
     model.Add(sum(x[12, d, 2] for d in range(num_days)) == 0)
-
-
-# กล่องที่ 3.2: กฎล็อกเวรคนลาคลอด (เบอร์ 13)
-def apply_maternity_leave_constraints(model, x, data):
-    num_days = data["num_days"]
-    
-    # 📌 พยาบาลเบอร์ 13 บังคับให้สวิตช์กะหยุด (0) เป็นจริงทุกวัน ตลอดทั้ง 31 วัน
-    for d in range(num_days):
-        model.Add(x[13, d, 0] == 1) # เปิดกะหยุด
-        model.Add(x[13, d, 1] == 0) # ห้ามเวรเช้า
-        model.Add(x[13, d, 2] == 0) # ห้ามเวรดึก
-
-
-# กล่องที่ 3.3: กฎล็อกเวรของคุณเจน
-def apply_jane_constraints(model, x, data):
-    num_days = data["num_days"]
-    shifts = list((0, 1, 2))
-
-    if 10 in data["all_nurses"]:
-        # 1. บังคับคุณเจน (เบอร์ 10) ได้วันหยุด 12 วันเป๊ะๆ ตามโควตา
-        model.Add(sum(x[10, d, 0] for d in range(num_days)) == 12)
-
-        # 2. ล็อกตารางเวรคุณเจนตามปฏิทินที่กำหนดล่วงหน้า (รวมแบบปกติ + แบบความลับ Secret)
-        full_jane_schedule = data["nurse_10_custom_schedule"]
-        for actual_day, required_shift in full_jane_schedule.items():
-            day_idx = actual_day - 1
-            for s in shifts:
-                if s == required_shift:
-                    model.Add(x[10, day_idx, s] == 1)
-                else:
-                    model.Add(x[10, day_idx, s] == 0)
-
-
-# กล่องที่ 4: กล่องใส่กฎรองเพื่อคิดคะแนนรางวัล (Soft Constraints)
-def apply_soft_constraints(model, x, data):
-    target_scores = []
-    num_days = data["num_days"]
-    all_nurses = data["all_nurses"]
-    
-
-    # คะแนนคิวจองวันหยุด
-    for nurse, actual_day, queue_order in data["holiday_bookings"]:
-            day_idx = actual_day - 1 
-            weight = 1000 - (queue_order * 10)
-            target_scores.append(x[nurse, day_idx, 0] * weight)
-
-
-            
-    # บีบให้หยุด 11 วันเป็นหลัก ใครได้ 12 วัน โดนลบคะแนนหนัก
-    active_nurses = [n for n in all_nurses.keys() if n != 13 and n != 10]
-    for n in active_nurses:
-        total_off_days = sum(x[n, d, 0] for d in range(num_days))
-        target_scores.append(total_off_days * -5000) 
-
-
-    # แจกคะแนนจูงใจให้เกลี่ยเวรเช้า (d) กระจายตัว
-    # for d in range(num_days):
-    #     daily_day_shift_total = sum(x[n, d, 1] for n in all_nurses.keys())
-    #     target_scores.append(daily_day_shift_total * 10)
-
-    # for d in range(num_days):
-    #     daily_day_shift_total = sum(x[n, d, 2] for n in all_nurses.keys())
-    #     target_scores.append(daily_day_shift_total * 100)
-
-
-    reward = 50
-    # pennalty = -22
-    
-    for nurse in [5,8,12,14]:
-        total_morning_days = sum(x[nurse, d, 1] for d in range(num_days))
-        target_scores.append(total_morning_days * reward)
-
-
-    if target_scores:
-        model.Maximize(sum(target_scores))
 
 
 # กล่องที่ 5: (Solver)

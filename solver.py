@@ -1,186 +1,193 @@
 from ortools.sat.python import cp_model
+import config_manager
+from hard_constrain import apply_all_hard_constraints
+# from soft_constrain import apply_soft_constraints
 from config_manager import load_config
-import pandas as pd
-import os
+from main_func import print_schedule_results
+    
 
-
-def prepare_input_data():
+def setup_variables(model, data):
     """
-    [ฟังก์ชันที่ 1: เตรียมข้อมูล] 
-    โหลดข้อมูลดิบจาก config_manager และแปลงค่าตัวแปรพร้อมใช้งาน
+    สร้างตัวแปรตัดสินใจ (Decision Variables) x[n, d, s] 
     """
-    try:
-        config_data = load_config()
-        processed_data = {
-            "num_days": config_data["num_days"],                            # จำนวนวันในเดือน (เช่น 31)
-            "all_nurses": config_data["all_nurses"],                        # รายชื่อพยาบาลทั้งหมด
-            "past_shifts": config_data["past_shifts"],                      # ประวัติเวรย้อนหลัง 3 วัน
-            
-            "min_off_days": config_data["min_off_days_required"],           # ค่าเริ่มต้นปกติคือ 11
-            "max_off_days": config_data["max_off_days_required"],           # ค่าเริ่มต้นปกติคือ 12
-            
-            "daily_staffing_plan": config_data["daily_staffing_plan"],      
-            
-            "holiday_bookings": config_data.get("holiday_bookings", []),
-            "nurse_10_custom_schedule": config_data.get("nurse_10_custom_schedule", {})
-        }
-        
-        print("📊 [Status] เตรียมข้อมูลสำหรับจัดเวรเสร็จสิ้น สมบูรณ์ 100%")
-        return processed_data
-
-    except Exception as e:
-        print(f"❌ [Error] เกิดข้อผิดพลาดในฟังก์ชันเตรียมข้อมูล: {e}")
-        return None
-
-
-def create_empty_schedule_variables(model, num_days, all_nurses):
-    """
-    [ขั้นตอนที่ 2: สร้างกล่อง]
-    สร้างกล่องตัวแปร x[n, d, s] เปล่า ๆ ทิ้งไว้ในระบบ โดยยังไม่มีการเช็คเงื่อนไขใด ๆ ทั้งสิ้น
-    """
+    num_days = data["num_days"]
+    all_nurses = data["all_nurses"]
+    shift = [0,1,2]  
+    
     x = {}
-    for n in all_nurses.keys():
-        for d in range(num_days):
-            for s in range(3):
-                # s: 0=หยุด, 1=เช้า, 2=ดึก
+    for n in all_nurses:
+        for d in range(1, num_days + 1):
+            for s in shift:
                 x[n, d, s] = model.NewBoolVar(f'shift_n{n}_d{d}_s{s}')
-                
-    print(f"📦 [Status] สร้างกล่องตัวแปรเปล่าสำเร็จ: {len(x)} กล่อง")
+            
     return x
 
 
-def setup_status_helpers(x, past_shifts):
+def create_shift_helpers(x, past_shifts):
     """
-    [ขั้นตอนที่ 3: ฟังก์ชันเช็คสถานะ]
-    สร้างและส่งคืน (Return) ฟังก์ชัน get_shift_status และ is_working ไปใช้งานต่อ
+    สร้างฟังก์ชัน Helper สำหรับตรวจสอบเวรรวมประวัติย้อนหลัง
     """
-    def get_shift_status(nurse_id, day, shift_type):
-        """
-        เช็คสถานะกะรายวัน: ถ้าวันปัจจุบัน (>=0) ส่งคืนกล่องตัวแปร x ถ้าวันในอดีต (<0) ส่งคืนเลข 1/0 จากอดีต
-        """
-        if day >= 0:
-            return x[nurse_id, day, shift_type]
-        else:
-            # ดึงประวัติเดือนเก่า: วันที่ -1 อยู่ Index 2, วันที่ -2 อยู่ Index 1, วันที่ -3 อยู่ Index 0
-            history_index = day + 3
-            history = past_shifts.get(nurse_id, [0, 0, 0])
-            return 1 if history[history_index] == shift_type else 0
+     
+    def get_shift_status(n, d, s):
 
-    def is_working(nurse_id, day):
-        """
-        เช็คว่าวันนั้นพยาบาลทำงานหรือไม่ (ทำงาน = ขึ้นเวรเช้า 1 หรือ เวรดึก 2)
-        """
-        return get_shift_status(nurse_id, day, 1) + get_shift_status(nurse_id, day, 2)
+        if d >= 1: return x[n, d, s]
+    
+        if d <= 0:
+             d = d + 2 
+             return 1 if s == past_shifts[n][d] else  0  
+            
+            
+    def is_working(n, d):
 
-    # ทำการ Return ตัวช่วยทั้ง 2 ตัวออกไปใช้งานภายนอก
+        if d <= 0:
+            d = d + 2
+            return 1 if past_shifts[n][d] != 0 else 0
+        
+        if d >= 1: return x[n, d, 1] + x[n, d, 2]
+
+
     return get_shift_status, is_working
 
 
-def apply_basic_labor_constraints(model, num_days, all_nurses, get_shift_status, is_working):
+class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
     """
-    [ขั้นตอนที่ 4: กฎเหล็ก]
-    ผูกเงื่อนไขเฉพาะ 3 กฎเหล็กแกนหลัก: 1คน1กะ, ห้ามดึกต่อเช้า, และทำงาน 3 วันติดบังคับหยุด
+    Callback Class สำหรับพิมพ์ผลลัพธ์ระหว่างการค้นหาคำตอบทั้งหมด
     """
-    for n in all_nurses.keys():
-        if n == 13: continue  # ข้ามพยาบาลเบอร์ 13 ลาคลอด
-        
-        # 4.1 กฎ 1 คน 1 กะต่อวัน (ต้องเลือก หยุด หรือ เช้า หรือ ดึก อย่างใดอย่างหนึ่ง)
-        for d in range(num_days):
-            model.Add(get_shift_status(n, d, 0) + get_shift_status(n, d, 1) + get_shift_status(n, d, 2) == 1)
-            
-        # 4.2 กฎห้ามขึ้นเวรดึก (N) ต่อเวรเช้า (D) เด็ดขาด (เช็คตั้งแต่รอยต่อสิ้นเดือนเก่า d = -1)
-        for d in range(-1, num_days - 1):
-            model.Add(get_shift_status(n, d, 2) + get_shift_status(n, d + 1, 1) <= 1)
-            
-        # 4.3 กฎทำงานติดต่อกัน 3 วัน วันที่ 4 ต้องถูกบังคับให้ได้เวรหยุด (0) อัตโนมัติ
-        for d in range(-3, num_days - 3):
-            three_days_work = is_working(n, d) + is_working(n, d + 1) + is_working(n, d + 2)
-            day_4_off = get_shift_status(n, d + 3, 0)
-            
-            # สมการ: ถ้า 3 วันแรกทำครบ (ยอดรวมเป็น 3) บีบให้ตัวแปรหยุดวันถัดไปเปิดเป็น 1 ทันที
-            model.Add(three_days_work <= 2 + day_4_off)
-            
-    print("🚫 [Status] ผูกกฎเหล็กพื้นฐาน 3 ข้อแรกเรียบร้อยแล้ว")
+    def __init__(self, variables):
+        cp_model.CpSolverSolutionCallback.__init__(self)
+        self.__variables = variables
+        self.__solution_count = 0
 
+    def on_solution_callback(self):
+        self.__solution_count += 1
+        print(f"=============================")
+        print(f"🌟 ค้นพบคำตอบที่ถูกต้องชุดที่: {self.__solution_count}")
+        print(f"=============================")
 
-# 5. soft constraints:
+    @property
+    def solution_count(self):
+        return self.__solution_count
 
-
-def create_solver_engine(time):
+def solve_model_all_solutions(model, x, data):
     """
-    [ขั้นตอนที่ 6] เปิดเครื่องคำนวณและตั้งค่าพารามิเตอร์เบื้องต้น
+    สั่งค้นหาคำตอบที่เป็นไปได้ทั้งหมดภายใต้กฎเหล็ก (All Solutions Mode)
     """
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = time
-    return solver
-
-
-
-def run_solver(solver, model):
-    """
-    [ขั้นตอนที่ 7] รับโมเดลที่มีกฎเหล็กครบแล้ว มาสั่งรันเพื่อผ่าทางตันหาคำตอบ
-    """
-    print("⏳ [Status] เครื่องยนต์กำลังเริ่มคำนวณจัดตารางเวร...")
+    solver.parameters.enumerate_all_solutions = True
     
-    # สั่งรัน Solver โดยส่งโมเดลคณิตศาสตร์เข้าไปประมวลผล
+    # รวมตัวแปรทั้งหมดส่งให้พิมพ์ผลลัพธ์
+    variable_list = list(x.values())
+    solution_printer = VarArraySolutionPrinter(variable_list)
+    
+    status = solver.Solve(model, solution_printer)
+    print(f"\n🔍 ค้นพบตารางเวรที่เป็นไปได้ทั้งหมด: {solution_printer.solution_count} รูปแบบ")
+    return solver, status
+
+
+def solve_model(model, max_time=30.0):
+    """
+    สั่งประมวลผลโมเดลหลัก เพื่อค้นหาคำตอบที่ดีที่สุดเพียงคำตอบเดียว (Single Solution Mode)
+    """
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = max_time
+    solver.parameters.log_search_progress = False  # แสดงล็อกระหว่างประมวลผล
+    
     status = solver.Solve(model)
-    
-    # เช็คผลลัพธ์การรัน
-    if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
-        print("✅ [Success] จัดตารางเวรพยาบาลสำเร็จลุล่วง!")
-        return True, solver  # ส่งตัวเครื่องยนต์ที่มีคำตอบกลับไป
-    else:
-        print("❌ [Infeasible] ไม่สามารถจัดตารางได้! เงื่อนไขกฎเหล็กขัดแย้งกันเอง")
-        return False, None   # จัดตารางไม่ได้ ส่ง None กลับไป
+    return solver, status
 
 
-
-def print_schedule(solver, x, data): pass
-
-
-
-def run_schedule_pipeline():
+def run_solver_pipeline(data , max_time=30.0):
     """
-    [ฟังก์ชันหลักควบคุมระบบ] ทำหน้าที่เรียกใช้ทุกฟังก์ชันและส่งต่อ Parameter
+    ฟังก์ชัน Pipeline หลักที่จะถูกเรียกจาก main.py
     """
-    data = prepare_input_data()
-    if not data: return "ข้อมูลไม่พร้อม"
+    # 1. ตั้งต้นโมเดล
+    model = cp_model.CpModel()
     
+    # 2. สร้างตัวแปรตัดสินใจ
+    x = setup_variables(model, data)
+    
+    # 3. ดึงตัวช่วยคำนวณเวรย้อนหลัง
+    get_shift_status, is_working = create_shift_helpers(x, data["past_shifts"])
+    
+    # 4. เรียกใช้กฎเหล็กจากไฟล์ hard_constrain.py
+
+    apply_all_hard_constraints(model, x, data, get_shift_status, is_working)
+
+
+    solver, status = solve_model(model, max_time=max_time)
+        
+    return solver, status, x
+
+
+def print_schedule(solver, status, x, data):
+    """
+    พิมพ์ตารางเวรผลลัพธ์ออกมาแสดงบนหน้าจอคอนโซลอย่างสวยงาม 
+    (ดึงอดีตต่อหัวตาราง พร้อมย้ายยอดสรุปคนขึ้นเวรไปต่อท้ายวันด้านล่างตารางทันที)
+    """
+    if status != cp_model.OPTIMAL and status != cp_model.FEASIBLE:
+        print("\n❌ ไม่พบคำตอบที่สอดคล้องกับเงื่อนไขทั้งหมด (Infeasible/No Solution)")
+        return
+
     num_days = data["num_days"]
     all_nurses = data["all_nurses"]
     past_shifts = data["past_shifts"]
+    bookings = data["holiday_bookings"] 
+    shift = [0, 1, 2]
+
+    # หัวตาราง
+    print(f"{'':<10} {"past ":<5}", end="")
+
+    for i in range(1, num_days + 1):
+        print(f" {i:02d} ",end="")
+    print("\n")
+
+    # รายละเอียดตารางเวรของพยาบาลแต่ละคน
+    for nurse_id, name in all_nurses.items():
+
+        nurse_info = f"{nurse_id}  {name}"
+        print(f"{nurse_info:<10}", end="")
+
+        # พิม past shifts
+        print("  ", end="")
+        for s in past_shifts[nurse_id]:
+            if s == 0:
+                print("x", end="")
+            elif s == 1:
+                print("d", end="")
+            elif s == 2:
+                print("n", end="")
+        print("| ", end="")
+
+
+        nurse_booking = bookings.get(nurse_id, {})
+        sum_off = 0
+        for d in range(1, num_days + 1):
+            for s in shift:
+                if solver.Value(x[nurse_id, d, s]) == 1:
+                    if s == 0:
+                        if d in nurse_booking: print(" R  ", end="")
+                        else: print(" .  ", end="")
+                    elif s == 1:
+                        print(" d  ", end="")
+                    elif s == 2:
+                        print(" n  ", end="")
+
+            if solver.Value(x[nurse_id, d, 0]) == 1:
+                sum_off += 1
+
+        print(f"| {sum_off:02d} ", end="")
+        print("\n")
+
+
+
+
+if __name__ == "__main__":
+
+    print("--- 🏥 เริ่มระบบจัดเวรอัตโนมัติ ---")
     
-    model = cp_model.CpModel()
-
+    data = load_config()
     
-    x = create_empty_schedule_variables(model, num_days, all_nurses)
-    get_shift_status, is_working = setup_status_helpers(x, past_shifts)
-
+    solver, status, x = run_solver_pipeline(data, max_time=30.0)
     
-    apply_basic_labor_constraints(model, num_days, all_nurses, get_shift_status, is_working)    
-
-    # (เรียกกฎเหล็กข้ออื่น ๆ เพิ่มตรงนี้...)
-    # ขั้นตอนที่ 5: กฎรอง (ถ้ามี)
+    print_schedule(solver, status, x, data)
     
-    solver = create_solver_engine(45)
-    
-    success, solved_engine = run_solver(solver, model)
-    
-    # ขั้นตอนหลังจากนี้ (แกะผลลัพธ์ / ปริ้นเช็ค / เซฟลง Excel)
-    if success:
-        # ✨ แก้ไข: ส่งพารามิเตอร์ให้ตรงตามฟังก์ชันรับด้านล่าง
-        print_schedule(solved_engine, x, data)
-        
-    # return success
-
-
-
-run_schedule_pipeline()
-
-
-
-
-
-
-
-

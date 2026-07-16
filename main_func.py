@@ -6,6 +6,7 @@ from config_manager import load_config
 
 # กล่องที่ 2: ฟังก์ชันตัวช่วยดึงประวัติเวรเก่า (Helpers)
 def create_shift_helpers(x, past_shifts):
+    
     def get_shift_status(nurse, day_idx, shift_type):
         if day_idx < 0:
             return 1 if past_shifts[nurse][day_idx + 3] == shift_type else 0
@@ -21,11 +22,13 @@ def create_shift_helpers(x, past_shifts):
 
 # กล่องที่ 3.1: กฎเหล็กพยาบาลทั่วไปทุกคน
 def apply_general_hard_constraints(model, x, data, get_shift_status, is_working):
+
     num_days = data["num_days"]
     all_nurses = data["all_nurses"]
     min_off_days_required = data["min_off_days_required"]
     nurse_levels = data["nurse_levels"]
     shifts = list((0, 1, 2))
+    
 
     # 📌 กฎพื้นฐาน: 1 วัน พนักงานทุกคนต้องได้ 1 กะ เท่านั้น
     for n in all_nurses.keys():

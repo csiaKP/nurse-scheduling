@@ -11,9 +11,9 @@ def apply_all_hard_constraints(model, x, data, get_shift_status, is_working):
     # กลุ่มที่ 1: กฎควบคุมกำลังพลรวมระดับวอร์ด
     apply_one_shift_per_day(model, x, data, num_days, all_nurses)
     
-    
-    # apply_night_day_continue(model, x, data, num_days, all_nurses, get_shift_status)  
-    # apply_work_limit(model, x, data, num_days, all_nurses, is_working)
+
+    apply_night_day_continue(model, x, data, num_days, all_nurses, get_shift_status)  
+    apply_work_limit(model, x, data, num_days, all_nurses, is_working)
     
 
     apply_daily_staff_demand(model, x, data, num_days)
@@ -44,12 +44,18 @@ def apply_one_shift_per_day(model, x, data, num_days, all_nurses):
 
 def apply_night_day_continue(model, x, data, num_days, all_nurses, get_shift_status):
     """[กฎข้อที่ 4] ห้ามลงดึกต่อเช้า"""
-    pass
+
+    for n in all_nurses:
+        for d in range(0, num_days):
+            model.Add(get_shift_status(n, d, 2) + get_shift_status(n, d + 1, 1) <= 1)
 
 
 def apply_work_limit(model, x, data, num_days, all_nurses, is_working):
     """[กฎข้อที่ 3] ควบคุมไม่ให้พยาบาลทำงานติดต่อกันเกินจำนวนวันที่กำหนด (เช่น ห้ามเกิน 3 วัน)"""
-    pass
+    
+    for n in all_nurses:
+        for d in range(-2, num_days - 2):
+            model.Add(is_working(n, d) + is_working(n, d + 1) + is_working(n, d + 2) + is_working(n, d + 3) < 4)
 
 
 
